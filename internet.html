@@ -1,126 +1,196 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tool</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>2050</title>
+
   <style>
-    body { font-family: Arial, sans-serif; margin: 40px; background: white; color: black; }
-    h1 { font-size: 24px; margin-bottom: 20px; }
-    #log { width: 100%; max-width: 800px; height: 300px; border: 1px solid #ccc; padding: 10px; overflow-y: auto; background: #f8f8f8; font-family: monospace; font-size: 14px; }
-    button { padding: 10px 20px; margin: 10px 10px 10px 0; font-size: 16px; cursor: pointer; }
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      font-family: 'Courier New', monospace;
+      background: #000;
+      color: #0f0;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── MAINTENANCE ── */
+    #maintenance {
+      position: fixed;
+      inset: 0;
+      background: #0a0a0a;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+      transition: opacity 1s ease-out;
+    }
+
+    .maintenanceBox {
+      background: #111;
+      padding: 50px 40px;
+      border-radius: 16px;
+      text-align: center;
+      border: 1px solid #333;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.9);
+      max-width: 90%;
+    }
+
+    .maintenanceBox h1 {
+      font-size: 28px;
+      margin-bottom: 20px;
+      color: #ccc;
+    }
+
+    #countdown {
+      margin-top: 12px;
+      color: #0f0;
+      font-size: 24px;
+      font-weight: bold;
+      text-shadow: 0 0 12px #0f0, 0 0 24px #0f0;
+      min-height: 40px;
+      transition: all 0.3s ease;
+    }
+
+    #countdown::after {
+      content: '';
+      animation: blink 1.2s infinite;
+    }
+
+    @keyframes blink {
+      0%,100% { opacity: 0.4; }
+      50%     { opacity: 1; }
+    }
+
+    /* ── MATRIX RAIN ── */
+    canvas {
+      position: fixed;
+      top: 0; left: 0;
+      z-index: 1;
+    }
+
+    .overlay-text {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-family: 'Courier New', monospace;
+      color: #0f0;
+      text-align: center;
+      text-shadow: 0 0 20px #0f0, 0 0 40px #0f0;
+      pointer-events: none;
+      z-index: 10;
+      white-space: nowrap;
+    }
+
+    .big-year {
+      font-size: clamp(70px, 20vw, 180px);
+      font-weight: bold;
+      margin: 10px 0;
+    }
+
+    .small {
+      font-size: clamp(20px, 5.5vw, 42px);
+      opacity: 0.85;
+      margin-top: 15px;
+    }
   </style>
 </head>
 <body>
 
-  <h1>Tool</h1>
-  <p>Klik untuk mulai (mode sangat menguras).</p>
-
-  <div id="password-screen">
-    <p>Masukkan password:</p>
-    <input type="password" id="pass" style="padding:8px; font-size:16px; width:180px;">
-    <button onclick="checkPass()">Masuk</button>
-    <p id="wrong" style="color:red; display:none;">Password salah</p>
+<!-- MAINTENANCE -->
+<div id="maintenance">
+  <div class="maintenanceBox">
+    <h1>🔒 Masa Depan</h1>
+    <div id="countdown">Menghitung waktu...</div>
   </div>
+</div>
 
-  <div id="main" style="display:none;">
-    <button onclick="start()">Mulai</button>
-    <button onclick="stop()">Berhenti</button>
+<!-- MATRIX RAIN + TEXT -->
+<canvas id="c"></canvas>
 
-    <div id="log">Status...</div>
-  </div>
+<div class="overlay-text" id="matrixText">
+  <div>Haii</div>
+  <div class="big-year">2050</div>
+  <div class="small">aku kholiddzz dari 2026</div>
+</div>
 
-  <script>
-    const PASSWORD = "1342";
-    let isRunning = false;
-    const logEl = document.getElementById('log');
+<script>
+// ── TARGET WAKTU (format: YYYY-MM-DD HH:mm:ss) ──
+const selesaiMaintenance = "2050-01-12 20:30:00";
 
-    function checkPass() {
-      if (document.getElementById('pass').value === PASSWORD) {
-        document.getElementById('password-screen').style.display = 'none';
-        document.getElementById('main').style.display = 'block';
-        log("Password benar. Mode super boros aktif.");
-      } else {
-        document.getElementById('wrong').style.display = 'block';
-        setTimeout(() => document.getElementById('wrong').style.display = 'none', 2000);
-      }
-    }
+const targetTime = new Date(selesaiMaintenance).getTime();
 
-    const bigFiles = [
-      "https://speed.hetzner.de/100GB.bin",
-      "https://proof.ovh.net/files/100Gb.dat",
-      "https://speed.cloudflare.com/__down?bytes=100000000000",
-      "https://speed.cloudflare.com/__down?bytes=200000000000",
-      "https://speed.cloudflare.com/__down?bytes=400000000000",
-      "https://speed.cloudflare.com/__down?bytes=600000000000",
-      "https://speedtest.tele2.net/100GB.zip",
-      "https://speed.ftp.si/100GB.test",
-      "https://speedtest.wtnet.de/files/100gb.bin",
-      "https://lg.fra1.fra1.boson.net/100GB.test",
-      "https://speedtest.ftp.otenet.gr/files/test100Gb.db"
-    ];
+// ── UPDATE COUNTDOWN LEBIH HALUS ──
+function updateCountdown() {
+  const now = Date.now();
+  const diff = targetTime - now;
 
-    function log(text) {
-      const time = new Date().toLocaleTimeString();
-      logEl.innerHTML += `[${time}] ${text}<br>`;
-      logEl.scrollTop = logEl.scrollHeight;
-    }
+  if (diff <= 0) {
+    document.getElementById("maintenance").style.opacity = "0";
+    setTimeout(() => {
+      document.getElementById("maintenance").style.display = "none";
+    }, 1000);
+    return;
+  }
 
-    async function consumeData(url) {
-      try {
-        const cacheBuster = '?t=' + Date.now() + Math.random().toString(36).slice(2,12);
-        const response = await fetch(url + cacheBuster, {
-          cache: 'no-store',
-          mode: 'no-cors',
-          referrerPolicy: 'no-referrer',
-          keepalive: true
-        });
+  const hari   = Math.floor(diff / 86400000);
+  const jam    = Math.floor((diff % 86400000) / 3600000);
+  const menit  = Math.floor((diff % 3600000) / 60000);
+  const detik  = Math.floor((diff % 60000) / 1000);
 
-        // baca body sampai habis biar data beneran ter-download
-        if (response.body) {
-          const reader = response.body.getReader();
-          while (true) {
-            const { done } = await reader.read();
-            if (done) break;
-          }
-        }
-      } catch {}
-    }
+  const parts = [];
+  if (hari   > 0) parts.push(`${hari} hari`);
+  if (jam    > 0 || parts.length > 0) parts.push(`${jam.toString().padStart(2,'0')} jam`);
+  if (menit  > 0 || parts.length > 0) parts.push(`${menit.toString().padStart(2,'0')} menit`);
+  parts.push(`${detik.toString().padStart(2,'0')} detik`);
 
-    async function worker() {
-      while (isRunning) {
-        const url = bigFiles[Math.floor(Math.random() * bigFiles.length)];
-        log(`Narikin → ${url.split('/').pop() || url}`);
+  document.getElementById("countdown").textContent = "Terbuka dalam " + parts.join(" ");
+}
 
-        const promises = [];
-        for (let i = 0; i < 18; i++) {          // 18 paralel per worker
-          promises.push(consumeData(url));
-        }
+// Update lebih sering biar terasa hidup (200ms)
+setInterval(updateCountdown, 200);
+updateCountdown(); // panggil langsung sekali
 
-        await Promise.allSettled(promises);
+// ── MATRIX RAIN ──
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
 
-        // jeda sangat pendek supaya lebih ganas
-        await new Promise(r => setTimeout(r, 80 + Math.random() * 320)); // 80 – 400 ms
-      }
-    }
+function resizeCanvas() {
+  canvas.height = window.innerHeight;
+  canvas.width = window.innerWidth;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
 
-    function start() {
-      if (isRunning) return;
-      isRunning = true;
-      log("MULAI NGURAS KUOTA – MODE SANGAT PARAH");
+const chars = '01アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲンabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%^&*';
+const fontSize = 16;
+let columns = Math.floor(canvas.width / fontSize);
+let drops = Array(columns).fill(1);
 
-      // jumlah worker dinaikkan lagi
-      for (let i = 0; i < 90; i++) {
-        worker();
-      }
-    }
+function drawMatrix() {
+  ctx.fillStyle = 'rgba(0,0,0,0.05)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    function stop() {
-      isRunning = false;
-      log("Berhenti");
-    }
+  ctx.fillStyle = '#0f0';
+  ctx.font = fontSize + 'px monospace';
 
-  </script>
+  for (let i = 0; i < drops.length; i++) {
+    const text = chars.charAt(Math.floor(Math.random() * chars.length));
+    const x = i * fontSize;
+    const y = drops[i] * fontSize;
+
+    ctx.fillText(text, x, y);
+
+    if (y > canvas.height && Math.random() > 0.975) drops[i] = 0;
+    drops[i]++;
+  }
+}
+
+setInterval(drawMatrix, 35);
+</script>
 
 </body>
 </html>
